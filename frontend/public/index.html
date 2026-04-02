@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Cloud Compiler</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+    h1 { color: #1F4E79; }
+    textarea { width: 100%; height: 200px; font-family: monospace; font-size: 14px; border: 2px solid #2E75B6; border-radius: 4px; padding: 10px; }
+    .controls { margin: 10px 0; display: flex; gap: 10px; align-items: center; }
+    button { background: #1F4E79; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px; }
+    button:hover { background: #2E75B6; }
+    select { padding: 8px; border: 2px solid #2E75B6; border-radius: 4px; }
+    #output { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 4px; font-family: monospace; min-height: 150px; white-space: pre; overflow: auto; }
+    #explanation { background: #EBF5FB; border-left: 4px solid #2E75B6; padding: 15px; margin-top: 10px; border-radius: 4px; }
+    .success { color: #28a745; }
+    .error { color: #dc3545; }
+    table { width: 100%; border-collapse: collapse; background: white; }
+    th { background: #1F4E79; color: white; padding: 10px; }
+    td { padding: 8px; border-bottom: 1px solid #ddd; }
+  </style>
+</head>
+<body>
+  <h1>Cloud Compiler Platform</h1>
+  <p>Compile C/C++/Python/Java/Rust/Go code in the cloud with LLVM optimization levels and AI error explanation.</p>
+
+  <h2>Your Code</h2>
+  <textarea id='codeInput' placeholder='Enter your C/C++ code here...'>
+    #include &lt;stdio.h&gt;
+    int main() {
+        printf("Hello, Cloud!\n");
+        return 0;
+    }
+  </textarea>
+
+  <div class='controls'>
+    <label>Language:</label>
+    <select id='langSelect' onchange='updatePlaceholder()'>
+      <option value='c'>C</option>
+      <option value='cpp'>C++</option>
+      <option value='python'>Python</option>
+      <option value='java'>Java</option>
+      <option value='rust'>Rust</option>
+      <option value='go'>Go</option>
+    </select>
+    <label>Optimization:</label>
+    <select id='optLevel'>
+      <option value='O0'>-O0 (No optimization)</option>
+      <option value='O1'>-O1 (Basic)</option>
+      <option value='O2' selected>-O2 (Standard)</option>
+      <option value='O3'>-O3 (Aggressive)</option>
+      <option value='all'>All Levels (compare)</option>
+    </select>
+    <button onclick='compile()'>Compile</button>
+    <button onclick='loadHistory()' style='background:#666;'> History</button>
+  </div>
+
+  <h2>Output</h2>
+  <div id='output'>Output will appear here...</div>
+  <div id='explanation' style='display:none;'></div>
+
+  <h2>Compilation History</h2>
+  <table id='historyTable'>
+    <tr><th>Time</th><th>Optimization</th><th>Status</th><th>Code Size</th></tr>
+  </table>
+
+  <script>
+  const API_BASE = 'https://cloud-compiler-func.azurewebsites.net/api';
+
+  const SAMPLES = {
+    c: `#include <stdio.h>\n\nint compute(int n) {\n    int sum = 0;\n    for (int i = 0; i < n; i++) {\n        sum += i * i;\n    }\n    return sum;\n}\n\nint main() {\n    printf("Sum of squares: %d\\n", compute(10));\n    return 0;\n}`,
+    cpp: `#include <iostream>\n\nint compute(int n) {\n    int sum = 0;\n    for (int i = 0; i < n; i++) sum += i * i;\n    return sum;\n}\n\nint main() {\n    std::cout << "Sum: " << compute(10) << std::endl;\n    return 0;\n}`,
+    python: `def compute(n):\n    return sum(i * i for i in range(n))\n\nprint(f"Sum of squares: {compute(10)}")`,
+    java: `public class Main {\n    static int compute(int n) {\n        int sum = 0;\n        for (int i = 0; i < n; i++) sum += i * i;\n        return sum;\n    }\n    public static void main(String[] args) {\n        System.out.println("Sum: " + compute(10));\n    }\n}`,
+    rust: `fn compute(n: i32) -> i32 {\n    (0..n).map(|i| i * i).sum()\n}\n\nfn main() {\n    println!("Sum of squares: {}", compute(10));\n}`,
+    go: `package main\n\nimport "fmt"\n\nfunc compute(n int) int {\n    sum := 0\n    for i := 0; i < n; i++ { sum += i * i }\n    return sum\n}\n\nfunc main() {\n    fmt.Println("Sum of squares:", compute(10))\n}`,
+  };
+
+  function updatePlaceholder() {
+    const lang = document.getElementById('langSelect').value;
+    document.getElementById('codeInput').value = SAMPLES[lang];
+    // Disable optimization for non-optimizable languages
+    const optSelect = document.getElementById('optLevel');
+    const noOpt = ['python', 'java', 'go'];
+    optSelect.disabled = noOpt.includes(lang);
+    optSelect.title = noOpt.includes(lang) ? 'Optimization not applicable for this language' : '';
+  }
+
+  // Set initial sample
+  document.getElementById('codeInput').value = SAMPLES['c'];
+
+  async function compile() {
+    const code = document.getElementById('codeInput').value;
+    const opt = document.getElementById('optLevel').value;
+    const lang = document.getElementById('langSelect').value;
+    document.getElementById('output').textContent = 'Compiling...';
+    document.getElementById('explanation').style.display = 'none';
+    try {
+      const res = await fetch(API_BASE + '/TriggerCompile', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({code, optimization: opt, userId: 'user1', language: lang})
+      });
+      const data = await res.json();
+      let out = '';
+      for (const [level, result] of Object.entries(data.results || {})) {
+        out += `Optimization level: ${level}\n`;
+        out += `Status      : ${result.success ? 'Success' : 'Failed'}\n`;
+        if (result.binary_size_bytes)
+          out += `Binary size : ${result.binary_size_bytes} bytes\n`;
+        if (result.exec_time_ms !== null && result.exec_time_ms !== undefined)
+          out += `Exec time   : ${result.exec_time_ms} ms\n`;
+        if (result.note)
+          out += `Note        : ${result.note}\n`;
+        if (result.stdout)
+          out += `Output      : ${result.stdout}`;
+        if (result.compile_stderr)
+          out += `Error       : ${result.compile_stderr}\n`;
+        out += '\n';
+      }
+      document.getElementById('output').textContent = out || JSON.stringify(data, null, 2);
+      // Trigger AI explanation on first failure
+      const firstFail = Object.values(data.results || {}).find(r => !r.success && r.compile_stderr);
+      if (firstFail) explainError(firstFail.compile_stderr);
+    } catch(e) {
+      document.getElementById('output').textContent = 'Error: ' + e.message;
+    }
+  }
+
+  async function explainError(errorText) {
+    try {
+      const res = await fetch(API_BASE + '/ExplainError', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({error: errorText})
+      });
+      const data = await res.json();
+      const el = document.getElementById('explanation');
+      el.innerHTML = '<strong>AI Explanation: ' + data.errorType + '</strong><br>' + data.explanation;
+      el.style.display = 'block';
+    } catch(e) {}
+  }
+
+  async function loadHistory() {
+    const res = await fetch(API_BASE + '/GetHistory?userId=user1');
+    const items = await res.json();
+    const table = document.getElementById('historyTable');
+    // Header row
+    table.innerHTML = '<tr><th>Time</th><th>Language</th><th>Optimization</th><th>Status</th><th>Exec Time</th><th>Code Size</th></tr>';
+
+    // Data rows
+    items.forEach(item => {
+        table.innerHTML += `<tr>
+            <td>${new Date(item.timestamp).toLocaleString()}</td>
+            <td>${item.language || 'c'}</td>
+            <td>-${item.optimization}</td>
+            <td>${item.success ? 'Success' : 'Failed'}</td>
+            <td>${item.execTimeMs ? item.execTimeMs + ' ms' : '-'}</td>
+            <td>${item.codeLength} chars</td>
+        </tr>`;
+    });
+  }
+</script>
+</body>
+</html>
