@@ -193,10 +193,3 @@ Retrieve the last 20 compilation jobs for a user.
 | Container Registry | Basic SKU | 1 image | ~$5/month |
 
 > **Note:** Azure Table Storage is bundled inside the Blob Storage account — no separate resource or cost.
-
----
-
-## 👩‍💻 Author
-
-**Swarna Dharshini S** — Azure Students Account  
-19CSE445 Cloud Computing, Amrita School of Computing, Coimbatore
